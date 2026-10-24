@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Label Kanban</title>
+    <title>Sistem Label Kanban (Vercel + Supabase Cloud)</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -11,7 +11,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <!-- QRCode.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <!-- Supabase JS Client -->
+    <!-- Supabase JS Client UMD -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
@@ -148,7 +148,7 @@
 </head>
 <body class="min-h-screen flex flex-col lg:flex-row">
 
-    <!-- SIDEBAR KONTROL -->
+    <!-- SIDEBAR KIRI -->
     <aside class="no-print w-full lg:w-[440px] bg-white border-r border-gray-200 p-5 flex flex-col justify-between shrink-0 h-auto lg:h-screen overflow-y-auto">
         <div class="space-y-4">
             <!-- Header App -->
@@ -163,10 +163,10 @@
                     </div>
                 </div>
 
-                <!-- Database Status Badge -->
-                <button onclick="openConfigModal()" id="dbStatusBadge" class="flex items-center space-x-1.5 px-2 py-1 rounded text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 hover:bg-amber-200 transition">
-                    <span id="dbStatusDot" class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                    <span id="dbStatusText">Cek Koneksi...</span>
+                <!-- Database Status Button (Klik untuk setup) -->
+                <button onclick="openConfigModal()" id="dbStatusBadge" class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 transition shadow-sm cursor-pointer">
+                    <span id="dbStatusDot" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span id="dbStatusText">⚙️ Setup Database</span>
                 </button>
             </div>
 
@@ -212,7 +212,7 @@
                 <div class="bg-blue-50 border border-blue-200 p-2.5 rounded-lg">
                     <label class="block font-bold text-blue-900 text-xs mb-1">Pilih Part Number (Master DB):</label>
                     <select id="vlookupSelect" class="w-full border border-blue-300 rounded px-2 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-bold text-blue-800 bg-white cursor-pointer">
-                        <option value="">-- Memuat Database... --</option>
+                        <option value="">-- Pilih Part Number --</option>
                     </select>
                 </div>
 
@@ -306,7 +306,7 @@
             <!-- TAB 2: MASTER PART -->
             <div id="tabDb" class="space-y-3 hidden">
                 <div class="flex items-center justify-between">
-                    <h3 class="text-xs font-bold text-gray-700 uppercase">Tabel Master Part (Supabase)</h3>
+                    <h3 class="text-xs font-bold text-gray-700 uppercase">Tabel Master Part</h3>
                     <button onclick="openMasterModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-2.5 py-1 rounded shadow-sm">
                         + Tambah Part
                     </button>
@@ -323,7 +323,7 @@
                             </tr>
                         </thead>
                         <tbody id="masterTableBody">
-                            <tr><td colspan="4" class="p-4 text-center text-gray-400">Memuat data dari Cloud...</td></tr>
+                            <tr><td colspan="4" class="p-4 text-center text-gray-400">Memuat data...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -364,7 +364,7 @@
             </div>
         </div>
 
-        <!-- Tombol Cetak & PDF -->
+        <!-- Tombol Aksi Bawah -->
         <div class="pt-4 border-t mt-4 space-y-2">
             <button onclick="exportToPDF()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition flex items-center justify-center space-x-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
@@ -378,7 +378,7 @@
         </div>
     </aside>
 
-    <!-- MAIN PREVIEW A4 -->
+    <!-- AREA PRATINJAU KERTAS A4 -->
     <main class="flex-1 bg-gray-200 p-4 lg:p-8 flex flex-col items-center overflow-x-auto min-h-screen">
         <div class="no-print mb-4 flex items-center justify-between w-full max-w-[210mm]">
             <h2 class="text-sm font-semibold text-gray-700 flex items-center space-x-2">
@@ -392,7 +392,7 @@
         </div>
     </main>
 
-    <!-- MODAL: MASTER PART -->
+    <!-- MODAL: EDIT/TAMBAH MASTER PART -->
     <div id="masterModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
             <div class="flex items-center justify-between border-b pb-3">
@@ -437,32 +437,34 @@
 
                 <div class="flex justify-end space-x-2 pt-3 border-t">
                     <button type="button" onclick="closeMasterModal()" class="px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-100 font-semibold">Batal</button>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-sm">Simpan ke Cloud</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-sm">Simpan</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- MODAL: SETTING KONEKSI SUPABASE -->
-    <div id="configModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+    <!-- MODAL: SETTING SUPABASE CLOUD DATABASE -->
+    <div id="configModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
             <div class="flex items-center justify-between border-b pb-3">
-                <h3 class="font-bold text-gray-800 text-base">⚙️ Konfigurasi Supabase</h3>
+                <h3 class="font-bold text-gray-800 text-base">⚙️ Hubungkan Database Supabase</h3>
                 <button onclick="closeConfigModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
             </div>
-            <p class="text-xs text-gray-500">https://rwhrmcwwqhiyaqcotlqs.supabase.co/rest/v1/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3aHJtY3d3cWhpeWFxY290bHFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4NDk3NTAsImV4cCI6MjEwODQyNTc1MH0.hABCKXOmRHB9YB1qiPZ3vew6FQUx6D668UypvqNC8-Y</p>
+            <p class="text-xs text-gray-600 leading-relaxed">
+                Salin <b>Project URL</b> dan <b>anon public key</b> dari tab Supabase Anda (Settings &gt; API), lalu tempel di bawah:
+            </p>
             <form onsubmit="handleSaveConfig(event)" class="space-y-3 text-xs">
                 <div>
-                    <label class="block font-semibold text-gray-700 mb-1">Supabase Project URL</label>
-                    <input type="text" id="configUrl" required placeholder="https://xyz.supabase.co" class="w-full border rounded px-3 py-2 font-mono outline-none focus:ring-2 focus:ring-blue-500">
+                    <label class="block font-bold text-gray-700 mb-1">Project URL</label>
+                    <input type="text" id="configUrl" required placeholder="https://xxxxxxxxxxxx.supabase.co" class="w-full border border-gray-300 rounded px-3 py-2 font-mono outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div>
-                    <label class="block font-semibold text-gray-700 mb-1">Supabase Anon Key</label>
-                    <textarea id="configKey" required rows="3" placeholder="eyJhbGciOi..." class="w-full border rounded px-3 py-2 font-mono outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                    <label class="block font-bold text-gray-700 mb-1">anon public key</label>
+                    <textarea id="configKey" required rows="3" placeholder="eyJhbGciOi..." class="w-full border border-gray-300 rounded px-3 py-2 font-mono outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                 </div>
                 <div class="flex justify-end space-x-2 pt-3 border-t">
-                    <button type="button" onclick="closeConfigModal()" class="px-4 py-2 border rounded-lg text-gray-600 font-semibold">Batal</button>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-sm">Hubungkan</button>
+                    <button type="button" onclick="closeConfigModal()" class="px-4 py-2 border rounded-lg text-gray-600 font-semibold">Tutup</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-sm">Hubungkan Sekarang</button>
                 </div>
             </form>
         </div>
@@ -473,30 +475,58 @@
         <span id="toastMsg">Notifikasi</span>
     </div>
 
-    <!-- SUPABASE CLIENT & APP LOGIC -->
+    <!-- JAVASCRIPT LOGIC -->
     <script>
-        // MASUKKAN URL & KEY SUPABASE DI SINI (Atau isi via tombol konfigurasi di web)
-        const DEFAULT_SUPABASE_URL = ""; 
+        // MASUKKAN URL & KEY SUPABASE DI SINI (Atau isi via tombol "Setup Database" di web)
+        const DEFAULT_SUPABASE_URL = "";
         const DEFAULT_SUPABASE_KEY = "";
 
-        let supabase = null;
-        let masterDatabase = [];
+        let sbClient = null;
+        let masterDatabase = [
+            {
+                id: 'part-1', partNo: '608-X3', rev: 'R-21S', docCode: 'FR/SK/10/00',
+                qty: '4900 Pcs', deliveryLabel: 'Delivery To',
+                deliveryTo: 'JTEKT Bearing (Dalian) Co.,LTD', origin: 'Made In Indonesia',
+                companyName: 'PT. TAKAI SEIKI INDONESIA'
+            },
+            {
+                id: 'part-2', partNo: 'GDD625-H-*D1', rev: 'J', docCode: 'FR/SK/10/00',
+                qty: '48,000 Pcs', deliveryLabel: 'Delivery To',
+                deliveryTo: 'NSK Bearing Ltd.', origin: 'Made In Indonesia',
+                companyName: 'PT. TAKAI SEIKI INDONESIA'
+            }
+        ];
         let printLogs = [];
 
-        function initSupabase() {
+        async function initSupabase() {
             const savedUrl = localStorage.getItem('sb_url') || DEFAULT_SUPABASE_URL;
             const savedKey = localStorage.getItem('sb_key') || DEFAULT_SUPABASE_KEY;
 
-            if (savedUrl && savedKey && window.supabase) {
+            if (savedUrl && savedKey && window.supabase && window.supabase.createClient) {
                 try {
-                    supabase = window.supabase.createClient(savedUrl, savedKey);
-                    updateDbStatus('online', 'Terhubung ke Supabase');
-                    loadCloudData();
+                    updateDbStatus('testing', 'Menghubungkan...');
+                    const client = window.supabase.createClient(savedUrl, savedKey);
+                    
+                    // Uji tes koneksi ke tabel
+                    const { data: testData, error: testErr } = await client.from('master_parts').select('id').limit(1);
+                    
+                    if (testErr) {
+                        console.warn("Supabase Error:", testErr.message);
+                        updateDbStatus('offline', 'Koneksi Gagal (Cek Tabel)');
+                        showToast("Koneksi gagal: " + testErr.message);
+                    } else {
+                        sbClient = client;
+                        updateDbStatus('online', '🟢 Terhubung Cloud');
+                        await loadCloudData();
+                    }
                 } catch (e) {
+                    console.error("Init Error:", e);
                     updateDbStatus('offline', 'Error Koneksi');
                 }
             } else {
-                updateDbStatus('offline', '⚙️ Klik untuk Setup DB');
+                updateDbStatus('offline', '⚙️ Setup Database');
+                populateVlookupDropdown();
+                populateMasterTable();
             }
         }
 
@@ -508,41 +538,40 @@
 
             txt.textContent = text;
             if (status === 'online') {
-                badge.className = "flex items-center space-x-1.5 px-2 py-1 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer";
-                dot.className = "w-2 h-2 rounded-full bg-emerald-500";
+                badge.className = "flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition cursor-pointer shadow-sm";
+                dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
+            } else if (status === 'testing') {
+                badge.className = "flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300 transition";
+                dot.className = "w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse";
             } else {
-                badge.className = "flex items-center space-x-1.5 px-2 py-1 rounded text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 cursor-pointer";
-                dot.className = "w-2 h-2 rounded-full bg-amber-500 animate-pulse";
+                badge.className = "flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 transition cursor-pointer shadow-sm";
+                dot.className = "w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse";
             }
         }
 
         async function loadCloudData() {
-            if (!supabase) return;
+            if (!sbClient) return;
             try {
-                // Fetch Master Parts
-                const { data: parts, error: errParts } = await supabase
+                const { data: parts, error: errParts } = await sbClient
                     .from('master_parts')
                     .select('*')
                     .order('created_at', { ascending: false });
 
-                if (!errParts && parts) {
+                if (!errParts && parts && parts.length > 0) {
                     masterDatabase = parts.map(p => ({
                         id: p.id,
                         partNo: p.part_no,
-                        rev: p.rev,
-                        docCode: p.doc_code,
-                        qty: p.qty,
-                        deliveryLabel: p.delivery_label,
-                        deliveryTo: p.delivery_to,
-                        origin: p.origin,
-                        companyName: p.company_name
+                        rev: p.rev || '',
+                        docCode: p.doc_code || '',
+                        qty: p.qty || '',
+                        deliveryLabel: p.delivery_label || 'Delivery To',
+                        deliveryTo: p.delivery_to || '',
+                        origin: p.origin || '',
+                        companyName: p.company_name || ''
                     }));
-                    populateVlookupDropdown();
-                    populateMasterTable();
                 }
 
-                // Fetch Print Logs
-                const { data: logs, error: errLogs } = await supabase
+                const { data: logs, error: errLogs } = await sbClient
                     .from('print_logs')
                     .select('*')
                     .order('created_at', { ascending: false })
@@ -556,18 +585,17 @@
                         lotNo: l.lot_no,
                         totalLabels: l.total_labels
                     }));
-                    populateLogsTable();
                 }
             } catch (err) {
                 console.error("Gagal load cloud data:", err);
+            } finally {
+                populateVlookupDropdown();
+                populateMasterTable();
+                populateLogsTable();
             }
         }
 
         async function saveMasterPartToCloud(partData) {
-            if (!supabase) {
-                showToast("Belum terhubung ke Supabase!");
-                return;
-            }
             const payload = {
                 id: partData.id || ('part-' + Date.now()),
                 part_no: partData.partNo,
@@ -580,42 +608,69 @@
                 company_name: partData.companyName || 'PT. TAKAI SEIKI INDONESIA'
             };
 
-            const { error } = await supabase.from('master_parts').upsert([payload]);
-            if (error) {
-                showToast("Gagal simpan: " + error.message);
+            if (sbClient) {
+                const { error } = await sbClient.from('master_parts').upsert([payload]);
+                if (error) {
+                    showToast("Gagal simpan: " + error.message);
+                    return;
+                }
+                showToast("Part berhasil disimpan ke Supabase Cloud!");
+                await loadCloudData();
             } else {
-                showToast("Part berhasil disimpan ke database!");
-                loadCloudData();
+                const existingIdx = masterDatabase.findIndex(m => m.id === payload.id);
+                if (existingIdx !== -1) masterDatabase[existingIdx] = partData;
+                else masterDatabase.push(partData);
+                populateVlookupDropdown();
+                populateMasterTable();
+                showToast("Part disimpan (Lokal). Hubungkan Cloud untuk sinkronisasi.");
             }
         }
 
         async function deleteMasterPartFromCloud(id) {
-            if (!supabase) return;
-            const { error } = await supabase.from('master_parts').delete().eq('id', id);
-            if (error) {
-                showToast("Gagal hapus: " + error.message);
+            if (sbClient) {
+                const { error } = await sbClient.from('master_parts').delete().eq('id', id);
+                if (error) {
+                    showToast("Gagal hapus: " + error.message);
+                    return;
+                }
+                showToast("Part berhasil dihapus dari Cloud!");
+                await loadCloudData();
             } else {
-                showToast("Part berhasil dihapus!");
-                loadCloudData();
+                masterDatabase = masterDatabase.filter(m => m.id !== id);
+                populateVlookupDropdown();
+                populateMasterTable();
+                showToast("Part dihapus dari daftar lokal.");
             }
         }
 
         async function logPrintHistoryToCloud(data) {
-            if (!supabase) return;
             const now = new Date();
             const dateStr = now.toLocaleDateString('id-ID') + ' ' + now.toLocaleTimeString('id-ID');
-            await supabase.from('print_logs').insert([{
+            const logEntry = {
                 id: 'log-' + now.getTime(),
                 date_str: dateStr,
                 part_no: data.partNo || '',
                 lot_no: data.lotNo || '',
                 total_labels: data.totalLabels || 0,
                 type: data.type || 'Print'
-            }]);
-            loadCloudData();
+            };
+
+            if (sbClient) {
+                await sbClient.from('print_logs').insert([logEntry]);
+                loadCloudData();
+            } else {
+                printLogs.unshift({
+                    id: logEntry.id,
+                    dateStr: dateStr,
+                    partNo: logEntry.part_no,
+                    lotNo: logEntry.lot_no,
+                    totalLabels: logEntry.total_labels
+                });
+                populateLogsTable();
+            }
         }
 
-        // UI & Render Elements
+        // DOM Binding & Render Logic
         let inputPageCount, totalLabelBadge, previewHeaderTitle, printArea;
         let selectOibanMode, manualOibanContainer, vlookupSelect, qrPreviewText;
         let selectDeliveryLabel, labelDeliveryTitle;
@@ -919,7 +974,7 @@
 
             setTimeout(() => {
                 renderQRCodes(qrStringsList, totalLabels);
-            }, 50);
+            }, 60);
         }
 
         function renderQRCodes(qrStringList, totalLabels) {
@@ -1013,7 +1068,7 @@
             window.print();
         }
 
-        // Modal Handlers
+        // Modals
         function openMasterModal(docId = null) {
             document.getElementById('modalDocId').value = docId || '';
             document.getElementById('modalTitle').textContent = docId ? 'Edit Master Part' : 'Tambah Master Part';
@@ -1081,15 +1136,15 @@
             document.getElementById('configModal').classList.add('hidden');
         }
 
-        function handleSaveConfig(e) {
+        async function handleSaveConfig(e) {
             e.preventDefault();
             const url = document.getElementById('configUrl').value.trim();
             const key = document.getElementById('configKey').value.trim();
             localStorage.setItem('sb_url', url);
             localStorage.setItem('sb_key', key);
             closeConfigModal();
-            initSupabase();
-            showToast("Konfigurasi database disimpan!");
+            showToast("Menghubungkan ke Supabase...");
+            await initSupabase();
         }
 
         function showToast(msg) {
@@ -1098,7 +1153,7 @@
             if (!toast || !toastMsg) return;
             toastMsg.textContent = msg;
             toast.classList.remove('hidden');
-            setTimeout(() => toast.classList.add('hidden'), 3000);
+            setTimeout(() => toast.classList.add('hidden'), 3500);
         }
 
         function exportDatabaseJSON() {
@@ -1131,7 +1186,8 @@
             reader.readAsText(file);
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
+        // Jalankan saat halaman siap
+        function startApplication() {
             initElements();
             initSupabase();
 
@@ -1157,7 +1213,13 @@
             if (vlookupSelect) vlookupSelect.addEventListener('change', (e) => applyVlookup(e.target.value));
 
             updatePreview();
-        });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', startApplication);
+        } else {
+            startApplication();
+        }
     </script>
 </body>
 </html>
