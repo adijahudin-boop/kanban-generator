@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Label Kanban</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- html2pdf.js for PDF Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- QRCode.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+
+        .a4-page {
+            width: 210mm;
+            height: 296.8mm;
+            padding: 5mm;
+            margin: 0 auto;
+            background: #ffffff;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(5, 1fr);
+            gap: 3mm;
+            align-content: start;
+            page-break-inside: avoid;
+            break-inside: avoid;
+            overflow: hidden;
+        }
+
+        .a4-page + .a4-page {
+            page-break-before: always;
+            break-before: page;
+        }
+
+        .print-area-wrapper.is-exporting {
+            gap: 0 !important;
+        }
+
+        .industrial-label {
+            width: 100%;
+            height: 100%;
+            max-height: 55mm;
+            box-sizing: border-box;
+            border: 1.5px solid #000000;
+            background-color: #ffffff;
+            font-family: 'Times New Roman', Times, serif;
+            color: #000000;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        .label-table {
+            width: 100%;
+            height: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .label-table td {
+            border: 1px solid #000000;
+            padding: 1px 4px;
+            vertical-align: middle;
+            word-wrap: break-word;
+            overflow: hidden;
+            line-height: 1.15;
+        }
+
+        .label-head-title {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 11px;
+            text-transform: capitalize;
+            width: 24%;
+            letter-spacing: -0.1px;
+        }
+
+        .qr-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            padding: 1px;
+            background-color: #ffffff;
+            box-sizing: border-box;
+        }
+
+        .qr-container img {
+            width: 58px !important;
+            height: 58px !important;
+            display: block !important;
+            margin: 0 auto !important;
+            object-fit: contain;
+        }
+
+        @media print {
+            body {
+                background: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-area-wrapper {
+                padding: 0 !important;
+                margin: 0 !important;
+                gap: 0 !important;
+                box-shadow: none !important;
+            }
+            .a4-page {
+                box-shadow: none !important;
+                margin: 0 !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                padding: 5mm !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                overflow: hidden !important;
+            }
+            .a4-page + .a4-page {
+                page-break-before: always !important;
+                break-before: page !important;
+            }
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col lg:flex-row">
+
+    <!-- SIDEBAR KONTROL -->
+    <aside class="no-print w-full lg:w-[440px] bg-white border-r border-gray-200 p-5 flex flex-col justify-between shrink-0 h-auto lg:h-screen overflow-y-auto">
+        <div class="space-y-4">
+            <!-- Header App -->
+            <div class="flex items-center justify-between border-b pb-3">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-blue-600 text-white p-2 rounded-lg shadow-sm">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-sm text-gray-800">Kanban Generator</h1>
+                        <p class="text-[11px] text-gray-500">Vercel + Supabase Cloud</p>
+                    </div>
+                </div>
+
+                <!-- Database Status Badge -->
+                <button onclick="openConfigModal()" id="dbStatusBadge" class="flex items-center space-x-1.5 px-2 py-1 rounded text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 hover:bg-amber-200 transition">
+                    <span id="dbStatusDot" class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span id="dbStatusText">Cek Koneksi...</span>
+                </button>
+            </div>
+
+            <!-- Tab Buttons -->
+            <div class="flex border-b text-xs font-semibold">
+                <button id="tabFormBtn" onclick="switchTab('form')" class="flex-1 py-2 text-center border-b-2 border-blue-600 text-blue-600 font-bold">
+                    📝 Form Label
+                </button>
+                <button id="tabDbBtn" onclick="switchTab('db')" class="flex-1 py-2 text-center text-gray-500 hover:text-blue-600">
+                    🗃️ Master Part
+                </button>
+                <button id="tabLogsBtn" onclick="switchTab('logs')" class="flex-1 py-2 text-center text-gray-500 hover:text-blue-600">
+                    📜 Riwayat
+                </button>
+            </div>
+
+            <!-- TAB 1: FORM LABEL -->
+            <div id="tabForm" class="space-y-3">
+                <div class="grid grid-cols-2 gap-2 bg-blue-50 p-2.5 rounded-lg border border-blue-200">
+                    <div>
+                        <label class="block font-bold text-blue-900 text-xs mb-1">Jumlah Lembar A4:</label>
+                        <select id="inputPageCount" class="w-full border border-blue-300 rounded px-2 py-1 text-xs font-bold text-blue-900 bg-white cursor-pointer focus:ring-2 focus:ring-blue-500">
+                            <option value="1" selected>1 Lembar (10 Label)</option>
+                            <option value="2">2 Lembar (20 Label)</option>
+                            <option value="3">3 Lembar (30 Label)</option>
+                            <option value="4">4 Lembar (40 Label)</option>
+                            <option value="5">5 Lembar (50 Label)</option>
+                            <option value="6">6 Lembar (60 Label)</option>
+                            <option value="7">7 Lembar (70 Label)</option>
+                            <option value="8">8 Lembar (80 Label)</option>
+                            <option value="9">9 Lembar (90 Label)</option>
+                            <option value="10">10 Lembar (100 Label)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-blue-900 text-xs mb-1">Total Output Label:</label>
+                        <div id="totalLabelBadge" class="w-full bg-blue-600 text-white font-bold rounded px-2 py-1.5 text-xs text-center shadow-sm">
+                            10 Label
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-blue-50 border border-blue-200 p-2.5 rounded-lg">
+                    <label class="block font-bold text-blue-900 text-xs mb-1">Pilih Part Number (Master DB):</label>
+                    <select id="vlookupSelect" class="w-full border border-blue-300 rounded px-2 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-bold text-blue-800 bg-white cursor-pointer">
+                        <option value="">-- Memuat Database... --</option>
+                    </select>
+                </div>
+
+                <form id="labelForm" class="space-y-2.5 text-sm" onsubmit="event.preventDefault();">
+                    <div>
+                        <label class="block font-medium text-gray-700 text-xs mb-1">NAMA PERUSAHAAN (Header Judul)</label>
+                        <input type="text" id="inputCompanyName" value="PT. TAKAI SEIKI INDONESIA" class="w-full border border-gray-300 rounded px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-bold">
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="col-span-2">
+                            <label class="block font-medium text-gray-700 text-xs mb-1">PART NAME / PART NO.</label>
+                            <input type="text" id="inputPartNo" value="608-X3" maxlength="30" placeholder="Max 30 char" class="w-full border border-gray-300 rounded px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs">
+                        </div>
+                        <div>
+                            <label class="block font-medium text-gray-700 text-xs mb-1">REV / SUFFIX</label>
+                            <input type="text" id="inputRev" value="R-21S" class="w-full border border-gray-300 rounded px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none text-center font-bold text-xs uppercase">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-medium text-gray-700 text-xs mb-1">DOC CODE (Kiri Atas)</label>
+                            <input type="text" id="inputDocCode" value="FR/SK/10/00" class="w-full border border-gray-300 rounded px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-mono">
+                        </div>
+                        <div>
+                            <label class="block font-medium text-gray-700 text-xs mb-1">LOT NUMBER (Max 25)</label>
+                            <input type="text" id="inputLotNo" value="LOT12345" maxlength="25" placeholder="Max 25 char" class="w-full border border-gray-300 rounded px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-5 gap-2 items-end">
+                        <div class="col-span-4">
+                            <label class="block font-medium text-gray-700 text-xs mb-1">OIBAN Awal (No. Produksi)</label>
+                            <input type="text" id="inputOiban" value="1" maxlength="15" placeholder="Contoh: 1" class="w-full border border-gray-300 rounded px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs">
+                        </div>
+                        <button type="button" onclick="generateAutoLot()" title="Buat Lot Otomatis Hari Ini" class="bg-gray-800 hover:bg-black text-white text-xs py-1.5 px-1 rounded transition text-center col-span-1 h-[31px]">
+                            ⚡ Lot
+                        </button>
+                    </div>
+
+                    <div class="bg-blue-50 p-2.5 rounded-lg border border-blue-200 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs font-bold text-blue-900">
+                                🔢 Mode OIBAN
+                            </label>
+                            <select id="selectOibanMode" class="border border-blue-300 rounded px-2 py-1 text-xs bg-white text-blue-900 font-bold outline-none cursor-pointer">
+                                <option value="increment" selected>Berurutan (+1)</option>
+                                <option value="same">Sama Semua</option>
+                                <option value="manual">Manual / Acak</option>
+                            </select>
+                        </div>
+                        <div id="manualOibanContainer" class="hidden grid grid-cols-3 gap-1.5 pt-1 border-t border-blue-200 max-h-36 overflow-y-auto">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-medium text-gray-700 text-xs mb-1">QUANTITY</label>
+                            <input type="text" id="inputQuantity" value="4900 Pcs" maxlength="12" placeholder="Contoh: 4900 Pcs" class="w-full border border-gray-300 rounded px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none text-xs">
+                        </div>
+                        <div>
+                            <label class="block font-medium text-gray-700 text-xs mb-1">ASAL / MAKER</label>
+                            <input type="text" id="inputOrigin" value="Made In Indonesia" class="w-full border border-gray-300 rounded px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none text-xs">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="block font-medium text-gray-700 text-xs mb-1">LABEL HEADER</label>
+                            <select id="selectDeliveryLabel" class="w-full border border-gray-300 rounded px-2 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-bold bg-white cursor-pointer">
+                                <option value="Delivery To" selected>Delivery To</option>
+                                <option value="Delivery Date">Delivery Date</option>
+                            </select>
+                        </div>
+                        <div class="col-span-2">
+                            <label id="labelDeliveryTitle" class="block font-medium text-gray-700 text-xs mb-1">DELIVERY TO / DATE</label>
+                            <input type="text" id="inputDeliveryTo" value="JTEKT Bearing (Dalian) Co.,LTD" class="w-full border border-gray-300 rounded px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-bold">
+                        </div>
+                    </div>
+
+                    <div class="border-t pt-2 mt-2">
+                        <label class="block font-semibold text-gray-700 text-xs mb-1">Data QR Code:</label>
+                        <div id="qrPreviewText" class="p-2 rounded text-[11px] font-mono break-all border bg-yellow-50 text-yellow-900 border-yellow-200 leading-tight">
+                            Memuat data QR...
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- TAB 2: MASTER PART -->
+            <div id="tabDb" class="space-y-3 hidden">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-bold text-gray-700 uppercase">Tabel Master Part (Supabase)</h3>
+                    <button onclick="openMasterModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-2.5 py-1 rounded shadow-sm">
+                        + Tambah Part
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto border rounded-lg max-h-80 overflow-y-auto bg-white shadow-sm">
+                    <table class="w-full text-xs text-left text-gray-600">
+                        <thead class="bg-gray-100 text-gray-700 sticky top-0 border-b">
+                            <tr>
+                                <th class="p-2">Part Name</th>
+                                <th class="p-2">Rev</th>
+                                <th class="p-2">Qty</th>
+                                <th class="p-2 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="masterTableBody">
+                            <tr><td colspan="4" class="p-4 text-center text-gray-400">Memuat data dari Cloud...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="pt-2 flex items-center justify-between text-xs border-t">
+                    <button onclick="exportDatabaseJSON()" class="text-blue-600 hover:underline font-semibold">
+                        📥 Download Backup (.json)
+                    </button>
+                    <label class="text-emerald-600 hover:underline font-semibold cursor-pointer">
+                        📤 Import Backup
+                        <input type="file" id="importJsonInput" accept=".json" class="hidden" onchange="importDatabaseJSON(event)">
+                    </label>
+                </div>
+            </div>
+
+            <!-- TAB 3: LOGS -->
+            <div id="tabLogs" class="space-y-3 hidden">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-bold text-gray-700 uppercase">Riwayat Cetak Label</h3>
+                    <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-medium">Tersimpan di Cloud</span>
+                </div>
+
+                <div class="overflow-x-auto border rounded-lg max-h-80 overflow-y-auto bg-white shadow-sm">
+                    <table class="w-full text-xs text-left text-gray-600">
+                        <thead class="bg-gray-100 text-gray-700 sticky top-0 border-b">
+                            <tr>
+                                <th class="p-2">Waktu</th>
+                                <th class="p-2">Part No</th>
+                                <th class="p-2">Lot No</th>
+                                <th class="p-2">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTableBody">
+                            <tr><td colspan="4" class="p-4 text-center text-gray-400">Belum ada riwayat cetak.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tombol Cetak & PDF -->
+        <div class="pt-4 border-t mt-4 space-y-2">
+            <button onclick="exportToPDF()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition flex items-center justify-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <span>Download PDF</span>
+            </button>
+
+            <button onclick="triggerPrint()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition flex items-center justify-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                <span>Cetak Lembar A4 (Print)</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- MAIN PREVIEW A4 -->
+    <main class="flex-1 bg-gray-200 p-4 lg:p-8 flex flex-col items-center overflow-x-auto min-h-screen">
+        <div class="no-print mb-4 flex items-center justify-between w-full max-w-[210mm]">
+            <h2 class="text-sm font-semibold text-gray-700 flex items-center space-x-2">
+                <span class="w-2.5 h-2.5 bg-green-500 rounded-full inline-block animate-pulse"></span>
+                <span id="previewHeaderTitle">Pratinjau Kertas A4</span>
+            </h2>
+            <span class="text-xs text-gray-500">Standard A4 (210mm x 297mm)</span>
+        </div>
+
+        <div id="printArea" class="print-area-wrapper flex flex-col gap-8 print:gap-0">
+        </div>
+    </main>
+
+    <!-- MODAL: MASTER PART -->
+    <div id="masterModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <div class="flex items-center justify-between border-b pb-3">
+                <h3 id="modalTitle" class="font-bold text-gray-800 text-base">Tambah Master Part</h3>
+                <button onclick="closeMasterModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
+            </div>
+
+            <form id="masterForm" onsubmit="handleSaveMaster(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="modalDocId">
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-1">Part Name / Part No (*)</label>
+                    <input type="text" id="modalPartNo" required placeholder="Contoh: 608-X3" class="w-full border rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 font-mono">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Rev / Suffix</label>
+                        <input type="text" id="modalRev" placeholder="R-21S" class="w-full border rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 font-bold uppercase">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Doc Code</label>
+                        <input type="text" id="modalDocCode" value="FR/SK/10/00" class="w-full border rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 font-mono">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Default Qty</label>
+                        <input type="text" id="modalQty" value="4900 Pcs" class="w-full border rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-gray-700 mb-1">Origin / Maker</label>
+                        <input type="text" id="modalOrigin" value="Made In Indonesia" class="w-full border rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-1">Delivery To</label>
+                    <input type="text" id="modalDeliveryTo" value="JTEKT Bearing (Dalian) Co.,LTD" class="w-full border rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-1">Nama Perusahaan Header</label>
+                    <input type="text" id="modalCompanyName" value="PT. TAKAI SEIKI INDONESIA" class="w-full border rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-3 border-t">
+                    <button type="button" onclick="closeMasterModal()" class="px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-100 font-semibold">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-sm">Simpan ke Cloud</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: SETTING KONEKSI SUPABASE -->
+    <div id="configModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <div class="flex items-center justify-between border-b pb-3">
+                <h3 class="font-bold text-gray-800 text-base">⚙️ Konfigurasi Supabase</h3>
+                <button onclick="closeConfigModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
+            </div>
+            <p class="text-xs text-gray-500">https://rwhrmcwwqhiyaqcotlqs.supabase.co/rest/v1/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3aHJtY3d3cWhpeWFxY290bHFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4NDk3NTAsImV4cCI6MjEwODQyNTc1MH0.hABCKXOmRHB9YB1qiPZ3vew6FQUx6D668UypvqNC8-Y</p>
+            <form onsubmit="handleSaveConfig(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-1">Supabase Project URL</label>
+                    <input type="text" id="configUrl" required placeholder="https://xyz.supabase.co" class="w-full border rounded px-3 py-2 font-mono outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-1">Supabase Anon Key</label>
+                    <textarea id="configKey" required rows="3" placeholder="eyJhbGciOi..." class="w-full border rounded px-3 py-2 font-mono outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+                <div class="flex justify-end space-x-2 pt-3 border-t">
+                    <button type="button" onclick="closeConfigModal()" class="px-4 py-2 border rounded-lg text-gray-600 font-semibold">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-sm">Hubungkan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-gray-900 text-white text-xs px-4 py-2.5 rounded-lg shadow-lg hidden transition-opacity duration-300 z-50">
+        <span id="toastMsg">Notifikasi</span>
+    </div>
+
+    <!-- SUPABASE CLIENT & APP LOGIC -->
+    <script>
+        // MASUKKAN URL & KEY SUPABASE DI SINI (Atau isi via tombol konfigurasi di web)
+        const DEFAULT_SUPABASE_URL = ""; 
+        const DEFAULT_SUPABASE_KEY = "";
+
+        let supabase = null;
+        let masterDatabase = [];
+        let printLogs = [];
+
+        function initSupabase() {
+            const savedUrl = localStorage.getItem('sb_url') || DEFAULT_SUPABASE_URL;
+            const savedKey = localStorage.getItem('sb_key') || DEFAULT_SUPABASE_KEY;
+
+            if (savedUrl && savedKey && window.supabase) {
+                try {
+                    supabase = window.supabase.createClient(savedUrl, savedKey);
+                    updateDbStatus('online', 'Terhubung ke Supabase');
+                    loadCloudData();
+                } catch (e) {
+                    updateDbStatus('offline', 'Error Koneksi');
+                }
+            } else {
+                updateDbStatus('offline', '⚙️ Klik untuk Setup DB');
+            }
+        }
+
+        function updateDbStatus(status, text) {
+            const badge = document.getElementById('dbStatusBadge');
+            const dot = document.getElementById('dbStatusDot');
+            const txt = document.getElementById('dbStatusText');
+            if (!badge || !dot || !txt) return;
+
+            txt.textContent = text;
+            if (status === 'online') {
+                badge.className = "flex items-center space-x-1.5 px-2 py-1 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer";
+                dot.className = "w-2 h-2 rounded-full bg-emerald-500";
+            } else {
+                badge.className = "flex items-center space-x-1.5 px-2 py-1 rounded text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 cursor-pointer";
+                dot.className = "w-2 h-2 rounded-full bg-amber-500 animate-pulse";
+            }
+        }
+
+        async function loadCloudData() {
+            if (!supabase) return;
+            try {
+                // Fetch Master Parts
+                const { data: parts, error: errParts } = await supabase
+                    .from('master_parts')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (!errParts && parts) {
+                    masterDatabase = parts.map(p => ({
+                        id: p.id,
+                        partNo: p.part_no,
+                        rev: p.rev,
+                        docCode: p.doc_code,
+                        qty: p.qty,
+                        deliveryLabel: p.delivery_label,
+                        deliveryTo: p.delivery_to,
+                        origin: p.origin,
+                        companyName: p.company_name
+                    }));
+                    populateVlookupDropdown();
+                    populateMasterTable();
+                }
+
+                // Fetch Print Logs
+                const { data: logs, error: errLogs } = await supabase
+                    .from('print_logs')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+
+                if (!errLogs && logs) {
+                    printLogs = logs.map(l => ({
+                        id: l.id,
+                        dateStr: l.date_str,
+                        partNo: l.part_no,
+                        lotNo: l.lot_no,
+                        totalLabels: l.total_labels
+                    }));
+                    populateLogsTable();
+                }
+            } catch (err) {
+                console.error("Gagal load cloud data:", err);
+            }
+        }
+
+        async function saveMasterPartToCloud(partData) {
+            if (!supabase) {
+                showToast("Belum terhubung ke Supabase!");
+                return;
+            }
+            const payload = {
+                id: partData.id || ('part-' + Date.now()),
+                part_no: partData.partNo,
+                rev: partData.rev || '',
+                doc_code: partData.docCode || 'FR/SK/10/00',
+                qty: partData.qty || '',
+                delivery_label: partData.deliveryLabel || 'Delivery To',
+                delivery_to: partData.deliveryTo || '',
+                origin: partData.origin || 'Made In Indonesia',
+                company_name: partData.companyName || 'PT. TAKAI SEIKI INDONESIA'
+            };
+
+            const { error } = await supabase.from('master_parts').upsert([payload]);
+            if (error) {
+                showToast("Gagal simpan: " + error.message);
+            } else {
+                showToast("Part berhasil disimpan ke database!");
+                loadCloudData();
+            }
+        }
+
+        async function deleteMasterPartFromCloud(id) {
+            if (!supabase) return;
+            const { error } = await supabase.from('master_parts').delete().eq('id', id);
+            if (error) {
+                showToast("Gagal hapus: " + error.message);
+            } else {
+                showToast("Part berhasil dihapus!");
+                loadCloudData();
+            }
+        }
+
+        async function logPrintHistoryToCloud(data) {
+            if (!supabase) return;
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('id-ID') + ' ' + now.toLocaleTimeString('id-ID');
+            await supabase.from('print_logs').insert([{
+                id: 'log-' + now.getTime(),
+                date_str: dateStr,
+                part_no: data.partNo || '',
+                lot_no: data.lotNo || '',
+                total_labels: data.totalLabels || 0,
+                type: data.type || 'Print'
+            }]);
+            loadCloudData();
+        }
+
+        // UI & Render Elements
+        let inputPageCount, totalLabelBadge, previewHeaderTitle, printArea;
+        let selectOibanMode, manualOibanContainer, vlookupSelect, qrPreviewText;
+        let selectDeliveryLabel, labelDeliveryTitle;
+        let inputCompanyName, inputPartNo, inputRev, inputDocCode, inputLotNo, inputOiban, inputQuantity, inputDeliveryTo, inputOrigin;
+
+        function initElements() {
+            inputPageCount = document.getElementById('inputPageCount');
+            totalLabelBadge = document.getElementById('totalLabelBadge');
+            previewHeaderTitle = document.getElementById('previewHeaderTitle');
+            printArea = document.getElementById('printArea');
+            selectOibanMode = document.getElementById('selectOibanMode');
+            manualOibanContainer = document.getElementById('manualOibanContainer');
+            vlookupSelect = document.getElementById('vlookupSelect');
+            qrPreviewText = document.getElementById('qrPreviewText');
+            selectDeliveryLabel = document.getElementById('selectDeliveryLabel');
+            labelDeliveryTitle = document.getElementById('labelDeliveryTitle');
+
+            inputCompanyName = document.getElementById('inputCompanyName');
+            inputPartNo = document.getElementById('inputPartNo');
+            inputRev = document.getElementById('inputRev');
+            inputDocCode = document.getElementById('inputDocCode');
+            inputLotNo = document.getElementById('inputLotNo');
+            inputOiban = document.getElementById('inputOiban');
+            inputQuantity = document.getElementById('inputQuantity');
+            inputDeliveryTo = document.getElementById('inputDeliveryTo');
+            inputOrigin = document.getElementById('inputOrigin');
+        }
+
+        function populateVlookupDropdown() {
+            if (!vlookupSelect) return;
+            if (masterDatabase.length === 0) {
+                vlookupSelect.innerHTML = `<option value="">-- Belum Ada Data Master --</option>`;
+                return;
+            }
+            vlookupSelect.innerHTML = `<option value="">-- Pilih Part Number --</option>` + masterDatabase.map((item, index) => 
+                `<option value="${index}">${item.partNo} (${item.rev || ''}) - ${item.deliveryTo || ''}</option>`
+            ).join('');
+        }
+
+        function populateMasterTable() {
+            const tbody = document.getElementById('masterTableBody');
+            if (!tbody) return;
+            if (masterDatabase.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">Belum ada data di database.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = masterDatabase.map((item) => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-2 font-mono font-bold text-blue-900">${item.partNo}</td>
+                    <td class="p-2 font-bold">${item.rev || '-'}</td>
+                    <td class="p-2">${item.qty || '-'}</td>
+                    <td class="p-2 text-center space-x-1">
+                        <button onclick="editMasterPart('${item.id}')" class="text-blue-600 hover:text-blue-800 font-bold px-1.5 py-0.5 rounded border border-blue-200">Edit</button>
+                        <button onclick="confirmDeleteMaster('${item.id}', '${item.partNo}')" class="text-red-600 hover:text-red-800 font-bold px-1.5 py-0.5 rounded border border-red-200">Hapus</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function populateLogsTable() {
+            const tbody = document.getElementById('logsTableBody');
+            if (!tbody) return;
+            if (printLogs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">Belum ada riwayat cetak.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = printLogs.map(log => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-2 text-[10px] text-gray-500">${log.dateStr || '-'}</td>
+                    <td class="p-2 font-mono font-bold">${log.partNo || '-'}</td>
+                    <td class="p-2 font-mono">${log.lotNo || '-'}</td>
+                    <td class="p-2 font-bold text-blue-600">${log.totalLabels || 0} Label</td>
+                </tr>
+            `).join('');
+        }
+
+        function applyVlookup(indexStr) {
+            if (indexStr === "") return;
+            const item = masterDatabase[parseInt(indexStr, 10)];
+            if (!item) return;
+
+            inputPartNo.value = item.partNo || '';
+            inputRev.value = item.rev || '';
+            inputDocCode.value = item.docCode || '';
+            inputQuantity.value = item.qty || '';
+            if (selectDeliveryLabel) selectDeliveryLabel.value = item.deliveryLabel || 'Delivery To';
+            inputDeliveryTo.value = item.deliveryTo || '';
+            inputOrigin.value = item.origin || '';
+            inputCompanyName.value = item.companyName || 'PT. TAKAI SEIKI INDONESIA';
+
+            updatePreview();
+        }
+
+        function switchTab(tab) {
+            const formTab = document.getElementById('tabForm');
+            const dbTab = document.getElementById('tabDb');
+            const logsTab = document.getElementById('tabLogs');
+            const formBtn = document.getElementById('tabFormBtn');
+            const dbBtn = document.getElementById('tabDbBtn');
+            const logsBtn = document.getElementById('tabLogsBtn');
+
+            formTab.classList.add('hidden');
+            dbTab.classList.add('hidden');
+            logsTab.classList.add('hidden');
+
+            formBtn.className = "flex-1 py-2 text-center text-gray-500 hover:text-blue-600";
+            dbBtn.className = "flex-1 py-2 text-center text-gray-500 hover:text-blue-600";
+            logsBtn.className = "flex-1 py-2 text-center text-gray-500 hover:text-blue-600";
+
+            if (tab === 'form') {
+                formTab.classList.remove('hidden');
+                formBtn.className = "flex-1 py-2 text-center border-b-2 border-blue-600 text-blue-600 font-bold";
+            } else if (tab === 'db') {
+                dbTab.classList.remove('hidden');
+                dbBtn.className = "flex-1 py-2 text-center border-b-2 border-blue-600 text-blue-600 font-bold";
+            } else if (tab === 'logs') {
+                logsTab.classList.remove('hidden');
+                logsBtn.className = "flex-1 py-2 text-center border-b-2 border-blue-600 text-blue-600 font-bold";
+            }
+        }
+
+        function toggleOibanModeUI() {
+            const mode = selectOibanMode ? selectOibanMode.value : 'increment';
+            if (mode === 'manual') {
+                renderManualInputs();
+                manualOibanContainer.classList.remove('hidden');
+            } else {
+                manualOibanContainer.classList.add('hidden');
+            }
+            updatePreview();
+        }
+
+        function renderManualInputs() {
+            const pageCount = parseInt(inputPageCount ? inputPageCount.value : 1, 10);
+            const totalLabels = pageCount * 10;
+            let html = '';
+            for (let i = 0; i < totalLabels; i++) {
+                html += `
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-600 block">L${i + 1}:</label>
+                        <input type="text" id="manualOiban${i}" value="${i + 1}" maxlength="15" oninput="updatePreview()" class="w-full border border-gray-300 rounded px-1 py-0.5 font-mono text-[11px] uppercase" />
+                    </div>
+                `;
+            }
+            manualOibanContainer.innerHTML = html;
+        }
+
+        function generateAutoLot() {
+            const now = new Date();
+            const yy = String(now.getFullYear()).slice(-2);
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            if (inputLotNo) {
+                inputLotNo.value = `LOT${yy}${mm}${dd}`;
+                updatePreview();
+            }
+        }
+
+        function getFormData() {
+            const companyName = inputCompanyName ? inputCompanyName.value.trim() : 'PT. TAKAI SEIKI INDONESIA';
+            const partBase = inputPartNo ? inputPartNo.value.trim() : '';
+            const revPart = inputRev ? inputRev.value.trim() : '';
+            const fullPartNo = revPart ? `${partBase}    ${revPart}` : partBase;
+            const pageCount = parseInt(inputPageCount ? inputPageCount.value : 1, 10);
+
+            return {
+                companyName: companyName,
+                pageCount: pageCount,
+                oibanMode: selectOibanMode ? selectOibanMode.value : 'increment',
+                partNoBase: partBase,
+                revPart: revPart,
+                fullPartNo: fullPartNo,
+                docCode: inputDocCode ? inputDocCode.value.trim() : 'FR/SK/10/00',
+                lotNo: inputLotNo ? inputLotNo.value.trim() : '',
+                oiban: inputOiban ? inputOiban.value.trim() : '',
+                quantity: inputQuantity ? inputQuantity.value.trim() : '',
+                deliveryLabel: selectDeliveryLabel ? selectDeliveryLabel.value : 'Delivery To',
+                deliveryTo: inputDeliveryTo ? inputDeliveryTo.value.trim() : '',
+                origin: inputOrigin ? inputOrigin.value.trim() : 'Made In Indonesia'
+            };
+        }
+
+        function getLabelOiban(baseOiban, index, mode) {
+            let val = baseOiban;
+            if (mode === 'manual') {
+                const manualEl = document.getElementById(`manualOiban${index}`);
+                val = manualEl && manualEl.value.trim() !== '' ? manualEl.value.trim() : baseOiban;
+            } else if (mode === 'increment') {
+                if (!baseOiban) return baseOiban;
+                const match = baseOiban.match(/^(.*?)(\d+)$/);
+                if (match) {
+                    const prefix = match[1];
+                    const digits = match[2];
+                    const num = parseInt(digits, 10) + index;
+                    val = prefix + num;
+                } else {
+                    const num = parseInt(baseOiban, 10);
+                    if (!isNaN(num)) val = String(num + index);
+                }
+            }
+            if (typeof val === 'string') val = val.replace(/^0+(?=\d)/, '');
+            return val;
+        }
+
+        function buildSingleLabelHTML(data, labelIndex, currentOiban) {
+            return `
+                <div class="industrial-label">
+                    <table class="label-table">
+                        <tbody>
+                            <tr style="height: 32%;">
+                                <td colspan="2" style="position: relative; width: 75%; padding: 2px 4px; vertical-align: middle;">
+                                    <div style="position: absolute; top: 2px; left: 4px; font-size: 8px; font-family: 'Times New Roman', Times, serif; color: #000; font-weight: normal;">
+                                        ${data.docCode}
+                                    </div>
+                                    <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 15px; font-weight: bold; text-align: center; font-family: 'Times New Roman', Times, serif; text-transform: uppercase; line-height: 1.1;">
+                                        ${data.companyName}
+                                    </div>
+                                </td>
+                                <td rowspan="2" colspan="2" style="width: 25%; padding: 1px; text-align: center; vertical-align: middle;">
+                                    <div class="qr-container" id="qr-box-${labelIndex}"></div>
+                                </td>
+                            </tr>
+                            <tr style="height: 17%;">
+                                <td class="label-head-title">Part Name</td>
+                                <td style="font-size: 13px; font-weight: bold; font-family: 'Times New Roman', Times, serif; padding: 1px 4px;">
+                                    <div style="display: flex; align-items: center;">
+                                        <span>${data.partNoBase}</span>
+                                        <span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                                        <span>${data.revPart}</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr style="height: 17%;">
+                                <td class="label-head-title">Lot Number</td>
+                                <td colspan="3" style="font-size: 12px; font-weight: normal; font-family: 'Times New Roman', Times, serif; padding: 1px 4px;">
+                                    ${data.lotNo}
+                                </td>
+                            </tr>
+                            <tr style="height: 17%;">
+                                <td class="label-head-title">Quantity</td>
+                                <td style="font-size: 12px; font-weight: normal; font-family: 'Times New Roman', Times, serif; padding: 1px 4px; width: 32%;">
+                                    ${data.quantity}
+                                </td>
+                                <td style="width: 15%; font-size: 11px; font-family: 'Times New Roman', Times, serif;">Oiban</td>
+                                <td style="font-size: 12px; font-weight: normal; font-family: 'Times New Roman', Times, serif; padding: 1px 4px;">
+                                    ${currentOiban}
+                                </td>
+                            </tr>
+                            <tr style="height: 17%;">
+                                <td class="label-head-title">${data.deliveryLabel}</td>
+                                <td style="font-size: 10px; font-weight: bold; font-family: 'Times New Roman', Times, serif; text-align: center; padding: 1px 2px; width: 40%;">
+                                    ${data.deliveryTo}
+                                </td>
+                                <td colspan="2" style="font-size: 11px; font-weight: normal; font-family: 'Times New Roman', Times, serif; text-align: center; padding: 1px 2px;">
+                                    ${data.origin}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function updatePreview() {
+            if (!printArea) return;
+
+            const data = getFormData();
+            const cleanQuantity = (data.quantity || '').replace(/\s*pcs\s*/gi, '').trim();
+            const totalLabels = data.pageCount * 10;
+
+            if (totalLabelBadge) totalLabelBadge.textContent = `${totalLabels} Label`;
+            if (previewHeaderTitle) previewHeaderTitle.textContent = `Pratinjau Kertas A4 (${data.pageCount} Lembar - Total ${totalLabels} Label)`;
+
+            let fullPagesHTML = '';
+            const qrStringsList = [];
+
+            let globalIndex = 0;
+            for (let p = 0; p < data.pageCount; p++) {
+                let singlePageLabelsHTML = '';
+                for (let i = 0; i < 10; i++) {
+                    const currentOiban = getLabelOiban(data.oiban, globalIndex, data.oibanMode);
+                    const qrDataString = `[${data.fullPartNo}],[${data.lotNo}],[${currentOiban}],[${cleanQuantity}]`;
+                    
+                    qrStringsList.push(qrDataString);
+                    singlePageLabelsHTML += buildSingleLabelHTML(data, globalIndex, currentOiban);
+                    globalIndex++;
+                }
+
+                fullPagesHTML += `
+                    <div class="a4-page shadow-lg print:shadow-none">
+                        ${singlePageLabelsHTML}
+                    </div>
+                `;
+            }
+
+            if (qrPreviewText) {
+                qrPreviewText.textContent = `Total: ${totalLabels} Label\nL1: ${qrStringsList[0]}\nL${totalLabels}: ${qrStringsList[totalLabels - 1]}`;
+            }
+
+            printArea.innerHTML = fullPagesHTML;
+
+            setTimeout(() => {
+                renderQRCodes(qrStringsList, totalLabels);
+            }, 50);
+        }
+
+        function renderQRCodes(qrStringList, totalLabels) {
+            if (!window.QRCode) {
+                setTimeout(() => renderQRCodes(qrStringList, totalLabels), 200);
+                return;
+            }
+
+            for (let i = 0; i < totalLabels; i++) {
+                const container = document.getElementById(`qr-box-${i}`);
+                if (!container) continue;
+                container.innerHTML = '';
+
+                const tempDiv = document.createElement('div');
+                try {
+                    new QRCode(tempDiv, {
+                        text: qrStringList[i],
+                        width: 70,
+                        height: 70,
+                        colorDark: "#000000",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+
+                    setTimeout(() => {
+                        const canvas = tempDiv.querySelector('canvas');
+                        if (canvas) {
+                            container.innerHTML = `<img src="${canvas.toDataURL('image/png')}" alt="QR" style="width: 58px !important; height: 58px !important; display: block; margin: auto;" />`;
+                        } else {
+                            const img = tempDiv.querySelector('img');
+                            if (img && img.src) {
+                                container.innerHTML = `<img src="${img.src}" alt="QR" style="width: 58px !important; height: 58px !important; display: block; margin: auto;" />`;
+                            }
+                        }
+                    }, 40);
+                } catch (err) {
+                    container.innerHTML = '<span style="font-size:9px; color:red;">Gagal QR</span>';
+                }
+            }
+        }
+
+        async function exportToPDF() {
+            const element = document.getElementById('printArea');
+            if (!element) return;
+
+            const data = getFormData();
+            const totalLabels = data.pageCount * 10;
+            const fileName = `Kanban_${data.partNoBase || 'Label'}_${totalLabels}Pcs.pdf`;
+
+            logPrintHistoryToCloud({
+                partNo: data.partNoBase,
+                lotNo: data.lotNo,
+                totalLabels: totalLabels,
+                type: 'PDF'
+            });
+
+            element.classList.add('is-exporting');
+            await new Promise(resolve => setTimeout(resolve, 250));
+
+            const opt = {
+                margin:       0,
+                filename:     fileName,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak:    { mode: ['css', 'legacy'] }
+            };
+
+            try {
+                if (window.html2pdf) {
+                    await html2pdf().set(opt).from(element).save();
+                    showToast("PDF berhasil di-download!");
+                } else {
+                    window.print();
+                }
+            } catch (err) {
+                window.print();
+            } finally {
+                element.classList.remove('is-exporting');
+            }
+        }
+
+        function triggerPrint() {
+            const data = getFormData();
+            logPrintHistoryToCloud({
+                partNo: data.partNoBase,
+                lotNo: data.lotNo,
+                totalLabels: data.pageCount * 10,
+                type: 'Print'
+            });
+            window.print();
+        }
+
+        // Modal Handlers
+        function openMasterModal(docId = null) {
+            document.getElementById('modalDocId').value = docId || '';
+            document.getElementById('modalTitle').textContent = docId ? 'Edit Master Part' : 'Tambah Master Part';
+            
+            if (docId) {
+                const item = masterDatabase.find(m => m.id === docId);
+                if (item) {
+                    document.getElementById('modalPartNo').value = item.partNo || '';
+                    document.getElementById('modalRev').value = item.rev || '';
+                    document.getElementById('modalDocCode').value = item.docCode || 'FR/SK/10/00';
+                    document.getElementById('modalQty').value = item.qty || '4900 Pcs';
+                    document.getElementById('modalOrigin').value = item.origin || 'Made In Indonesia';
+                    document.getElementById('modalDeliveryTo').value = item.deliveryTo || '';
+                    document.getElementById('modalCompanyName').value = item.companyName || 'PT. TAKAI SEIKI INDONESIA';
+                }
+            } else {
+                document.getElementById('masterForm').reset();
+                document.getElementById('modalDocCode').value = 'FR/SK/10/00';
+                document.getElementById('modalQty').value = '4900 Pcs';
+                document.getElementById('modalOrigin').value = 'Made In Indonesia';
+                document.getElementById('modalCompanyName').value = 'PT. TAKAI SEIKI INDONESIA';
+            }
+            document.getElementById('masterModal').classList.remove('hidden');
+        }
+
+        function closeMasterModal() {
+            document.getElementById('masterModal').classList.add('hidden');
+        }
+
+        function editMasterPart(docId) {
+            openMasterModal(docId);
+        }
+
+        function handleSaveMaster(e) {
+            e.preventDefault();
+            const docId = document.getElementById('modalDocId').value;
+            const data = {
+                id: docId || null,
+                partNo: document.getElementById('modalPartNo').value.trim(),
+                rev: document.getElementById('modalRev').value.trim(),
+                docCode: document.getElementById('modalDocCode').value.trim(),
+                qty: document.getElementById('modalQty').value.trim(),
+                origin: document.getElementById('modalOrigin').value.trim(),
+                deliveryLabel: 'Delivery To',
+                deliveryTo: document.getElementById('modalDeliveryTo').value.trim(),
+                companyName: document.getElementById('modalCompanyName').value.trim()
+            };
+            saveMasterPartToCloud(data);
+            closeMasterModal();
+        }
+
+        function confirmDeleteMaster(id, partNo) {
+            if (confirm(`Hapus Part "${partNo}" dari database?`)) {
+                deleteMasterPartFromCloud(id);
+            }
+        }
+
+        function openConfigModal() {
+            document.getElementById('configUrl').value = localStorage.getItem('sb_url') || DEFAULT_SUPABASE_URL;
+            document.getElementById('configKey').value = localStorage.getItem('sb_key') || DEFAULT_SUPABASE_KEY;
+            document.getElementById('configModal').classList.remove('hidden');
+        }
+
+        function closeConfigModal() {
+            document.getElementById('configModal').classList.add('hidden');
+        }
+
+        function handleSaveConfig(e) {
+            e.preventDefault();
+            const url = document.getElementById('configUrl').value.trim();
+            const key = document.getElementById('configKey').value.trim();
+            localStorage.setItem('sb_url', url);
+            localStorage.setItem('sb_key', key);
+            closeConfigModal();
+            initSupabase();
+            showToast("Konfigurasi database disimpan!");
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            if (!toast || !toastMsg) return;
+            toastMsg.textContent = msg;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        function exportDatabaseJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(masterDatabase, null, 2));
+            const dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", `MasterParts_Backup_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+        }
+
+        function importDatabaseJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const items = JSON.parse(e.target.result);
+                    if (Array.isArray(items)) {
+                        for (const item of items) {
+                            await saveMasterPartToCloud(item);
+                        }
+                        showToast("Import Backup Berhasil!");
+                    }
+                } catch (err) {
+                    alert("Format file JSON tidak valid!");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initElements();
+            initSupabase();
+
+            const inputs = [
+                inputCompanyName, inputPartNo, inputRev, inputDocCode, inputLotNo,
+                inputOiban, inputQuantity, inputDeliveryTo, inputOrigin
+            ];
+            inputs.forEach(input => {
+                if (input) input.addEventListener('input', updatePreview);
+            });
+
+            if (selectDeliveryLabel) selectDeliveryLabel.addEventListener('change', () => {
+                if (labelDeliveryTitle) labelDeliveryTitle.textContent = selectDeliveryLabel.value.toUpperCase();
+                updatePreview();
+            });
+
+            if (inputPageCount) inputPageCount.addEventListener('change', () => {
+                if (selectOibanMode && selectOibanMode.value === 'manual') renderManualInputs();
+                updatePreview();
+            });
+
+            if (selectOibanMode) selectOibanMode.addEventListener('change', toggleOibanModeUI);
+            if (vlookupSelect) vlookupSelect.addEventListener('change', (e) => applyVlookup(e.target.value));
+
+            updatePreview();
+        });
+    </script>
+</body>
+</html>
