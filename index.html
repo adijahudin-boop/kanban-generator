@@ -163,10 +163,10 @@
                     </div>
                 </div>
 
-                <!-- Database Status Button (Klik untuk setup) -->
+                <!-- Database Status Button -->
                 <button onclick="openConfigModal()" id="dbStatusBadge" class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 transition shadow-sm cursor-pointer">
                     <span id="dbStatusDot" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-                    <span id="dbStatusText">⚙️ Setup Database</span>
+                    <span id="dbStatusText">Cek Koneksi...</span>
                 </button>
             </div>
 
@@ -364,7 +364,7 @@
             </div>
         </div>
 
-        <!-- Tombol Aksi Bawah -->
+        <!-- Tombol Cetak Bawah -->
         <div class="pt-4 border-t mt-4 space-y-2">
             <button onclick="exportToPDF()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition flex items-center justify-center space-x-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
@@ -378,7 +378,7 @@
         </div>
     </aside>
 
-    <!-- AREA PRATINJAU KERTAS A4 -->
+    <!-- AREA PREVIEW A4 -->
     <main class="flex-1 bg-gray-200 p-4 lg:p-8 flex flex-col items-center overflow-x-auto min-h-screen">
         <div class="no-print mb-4 flex items-center justify-between w-full max-w-[210mm]">
             <h2 class="text-sm font-semibold text-gray-700 flex items-center space-x-2">
@@ -443,7 +443,7 @@
         </div>
     </div>
 
-    <!-- MODAL: SETTING SUPABASE CLOUD DATABASE -->
+    <!-- MODAL: SETUP SUPABASE CLOUD DATABASE -->
     <div id="configModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
             <div class="flex items-center justify-between border-b pb-3">
@@ -477,43 +477,40 @@
 
     <!-- JAVASCRIPT LOGIC -->
     <script>
-        // MASUKKAN URL & KEY SUPABASE DI SINI (Atau isi via tombol "Setup Database" di web)
-        const DEFAULT_SUPABASE_URL = "";
+        // URL Supabase otomatis dari project Anda:
+        const DEFAULT_SUPABASE_URL = "https://rwhrmcwwqhiyaqcotlqs.supabase.co";
+        
+        // Masukkan anon public key Anda di sini jika ingin otomatis 100% tanpa setup di web:
         const DEFAULT_SUPABASE_KEY = "";
 
         let sbClient = null;
-        let masterDatabase = [
-            {
-                id: 'part-1', partNo: '608-X3', rev: 'R-21S', docCode: 'FR/SK/10/00',
-                qty: '4900 Pcs', deliveryLabel: 'Delivery To',
-                deliveryTo: 'JTEKT Bearing (Dalian) Co.,LTD', origin: 'Made In Indonesia',
-                companyName: 'PT. TAKAI SEIKI INDONESIA'
-            },
-            {
-                id: 'part-2', partNo: 'GDD625-H-*D1', rev: 'J', docCode: 'FR/SK/10/00',
-                qty: '48,000 Pcs', deliveryLabel: 'Delivery To',
-                deliveryTo: 'NSK Bearing Ltd.', origin: 'Made In Indonesia',
-                companyName: 'PT. TAKAI SEIKI INDONESIA'
-            }
-        ];
+        let masterDatabase = [];
         let printLogs = [];
 
+        // Fungsi pembersih URL otomatis jika ada tambahan /rest/v1/
+        function cleanSupabaseUrl(url) {
+            if (!url) return '';
+            return url.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+        }
+
         async function initSupabase() {
-            const savedUrl = localStorage.getItem('sb_url') || DEFAULT_SUPABASE_URL;
-            const savedKey = localStorage.getItem('sb_key') || DEFAULT_SUPABASE_KEY;
+            let savedUrl = cleanSupabaseUrl(localStorage.getItem('sb_url') || DEFAULT_SUPABASE_URL);
+            let savedKey = (localStorage.getItem('sb_key') || DEFAULT_SUPABASE_KEY).trim();
+
+            if (savedUrl) localStorage.setItem('sb_url', savedUrl);
 
             if (savedUrl && savedKey && window.supabase && window.supabase.createClient) {
                 try {
                     updateDbStatus('testing', 'Menghubungkan...');
                     const client = window.supabase.createClient(savedUrl, savedKey);
                     
-                    // Uji tes koneksi ke tabel
+                    // Uji tes koneksi ke tabel master_parts
                     const { data: testData, error: testErr } = await client.from('master_parts').select('id').limit(1);
                     
                     if (testErr) {
                         console.warn("Supabase Error:", testErr.message);
-                        updateDbStatus('offline', 'Koneksi Gagal (Cek Tabel)');
-                        showToast("Koneksi gagal: " + testErr.message);
+                        updateDbStatus('offline', 'Koneksi Gagal (Cek Key)');
+                        showToast("Error: " + testErr.message);
                     } else {
                         sbClient = client;
                         updateDbStatus('online', '🟢 Terhubung Cloud');
@@ -525,9 +522,29 @@
                 }
             } else {
                 updateDbStatus('offline', '⚙️ Setup Database');
-                populateVlookupDropdown();
-                populateMasterTable();
+                loadFallbackData();
             }
+        }
+
+        function loadFallbackData() {
+            if (masterDatabase.length === 0) {
+                masterDatabase = [
+                    {
+                        id: 'part-1', partNo: '608-X3', rev: 'R-21S', docCode: 'FR/SK/10/00',
+                        qty: '4900 Pcs', deliveryLabel: 'Delivery To',
+                        deliveryTo: 'JTEKT Bearing (Dalian) Co.,LTD', origin: 'Made In Indonesia',
+                        companyName: 'PT. TAKAI SEIKI INDONESIA'
+                    },
+                    {
+                        id: 'part-2', partNo: 'GDD625-H-*D1', rev: 'J', docCode: 'FR/SK/10/00',
+                        qty: '48,000 Pcs', deliveryLabel: 'Delivery To',
+                        deliveryTo: 'NSK Bearing Ltd.', origin: 'Made In Indonesia',
+                        companyName: 'PT. TAKAI SEIKI INDONESIA'
+                    }
+                ];
+            }
+            populateVlookupDropdown();
+            populateMasterTable();
         }
 
         function updateDbStatus(status, text) {
@@ -622,7 +639,7 @@
                 else masterDatabase.push(partData);
                 populateVlookupDropdown();
                 populateMasterTable();
-                showToast("Part disimpan (Lokal). Hubungkan Cloud untuk sinkronisasi.");
+                showToast("Part disimpan lokal.");
             }
         }
 
@@ -639,7 +656,7 @@
                 masterDatabase = masterDatabase.filter(m => m.id !== id);
                 populateVlookupDropdown();
                 populateMasterTable();
-                showToast("Part dihapus dari daftar lokal.");
+                showToast("Part dihapus.");
             }
         }
 
@@ -670,7 +687,7 @@
             }
         }
 
-        // DOM Binding & Render Logic
+        // Render & Input Handlers
         let inputPageCount, totalLabelBadge, previewHeaderTitle, printArea;
         let selectOibanMode, manualOibanContainer, vlookupSelect, qrPreviewText;
         let selectDeliveryLabel, labelDeliveryTitle;
@@ -1127,8 +1144,8 @@
         }
 
         function openConfigModal() {
-            document.getElementById('configUrl').value = localStorage.getItem('sb_url') || DEFAULT_SUPABASE_URL;
-            document.getElementById('configKey').value = localStorage.getItem('sb_key') || DEFAULT_SUPABASE_KEY;
+            document.getElementById('configUrl').value = cleanSupabaseUrl(localStorage.getItem('sb_url') || DEFAULT_SUPABASE_URL);
+            document.getElementById('configKey').value = (localStorage.getItem('sb_key') || DEFAULT_SUPABASE_KEY).trim();
             document.getElementById('configModal').classList.remove('hidden');
         }
 
@@ -1138,7 +1155,7 @@
 
         async function handleSaveConfig(e) {
             e.preventDefault();
-            const url = document.getElementById('configUrl').value.trim();
+            const url = cleanSupabaseUrl(document.getElementById('configUrl').value);
             const key = document.getElementById('configKey').value.trim();
             localStorage.setItem('sb_url', url);
             localStorage.setItem('sb_key', key);
@@ -1186,7 +1203,6 @@
             reader.readAsText(file);
         }
 
-        // Jalankan saat halaman siap
         function startApplication() {
             initElements();
             initSupabase();
